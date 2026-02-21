@@ -1589,6 +1589,205 @@ export async function selectQuotation(ticketId: string, quotationId: string) {
 }
 
 /**
+ * Verifica se usuário atual é interessado no ticket de compras filho
+ * (Gerente do departamento do criador do chamado pai)
+ */
+export async function getIsInteressado(ticketId: string): Promise<boolean> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("parent_ticket_id")
+    .eq("id", ticketId)
+    .single();
+
+  if (!ticket?.parent_ticket_id) {
+    return false;
+  }
+
+  const { data: parentTicket } = await supabase
+    .from("tickets")
+    .select("created_by")
+    .eq("id", ticket.parent_ticket_id)
+    .single();
+
+  if (!parentTicket?.created_by) {
+    return false;
+  }
+
+  const { data: creatorRoles } = await supabase
+    .from("user_roles")
+    .select(
+      `
+      role:roles!role_id(department_id)
+    `
+    )
+    .eq("user_id", parentTicket.created_by);
+
+  interface RoleDepartmentData {
+    role:
+      | {
+          department_id: string | null;
+        }
+      | {
+          department_id: string | null;
+        }[]
+      | null;
+  }
+
+  const creatorDepartmentIds = (
+    (creatorRoles as RoleDepartmentData[] | null) ?? []
+  )
+    .map((ur) => {
+      const role = Array.isArray(ur.role) ? ur.role[0] : ur.role;
+      return role?.department_id ?? null;
+    })
+    .filter((departmentId): departmentId is string => Boolean(departmentId));
+
+  if (creatorDepartmentIds.length === 0) {
+    return false;
+  }
+
+  const { data: currentUserRoles } = await supabase
+    .from("user_roles")
+    .select(
+      `
+      role:roles!role_id(name, department_id)
+    `
+    )
+    .eq("user_id", user.id);
+
+  interface RoleNameDepartmentData {
+    role:
+      | {
+          name: string;
+          department_id: string | null;
+        }
+      | {
+          name: string;
+          department_id: string | null;
+        }[]
+      | null;
+  }
+
+  const isInteressado = (
+    (currentUserRoles as RoleNameDepartmentData[] | null) ?? []
+  ).some((ur) => {
+    const role = Array.isArray(ur.role) ? ur.role[0] : ur.role;
+    if (!role) return false;
+
+    return (
+      role.name === "Gerente" &&
+      !!role.department_id &&
+      creatorDepartmentIds.includes(role.department_id)
+    );
+  });
+
+  return isInteressado;
+}
+
+/**
+ * Seleciona cotação vencedora pelo interessado e aprova o chamado
+ */
+export async function selectQuotationByRequester(
+  ticketId: string,
+  quotationId: string
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Não autenticado", code: "forbidden" };
+  }
+
+  const isInteressado = await getIsInteressado(ticketId);
+  if (!isInteressado) {
+    return { error: "Apenas o interessado pode selecionar a cotação", code: "forbidden" };
+  }
+
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("status")
+    .eq("id", ticketId)
+    .single();
+
+  if (!ticket) {
+    return { error: "Chamado não encontrado", code: "not_found" };
+  }
+
+  if (ticket.status !== "awaiting_requester_selection") {
+    return {
+      error: "Chamado não está aguardando seleção do solicitante",
+      code: "conflict",
+    };
+  }
+
+  const { error: unselectError } = await supabase
+    .from("ticket_quotations")
+    .update({ is_selected: false, status: "pending" })
+    .eq("ticket_id", ticketId);
+
+  if (unselectError) {
+    console.error("Error unselecting quotations:", unselectError);
+    return { error: unselectError.message, code: "conflict" };
+  }
+
+  const { error: selectError } = await supabase
+    .from("ticket_quotations")
+    .update({ is_selected: true, status: "approved" })
+    .eq("id", quotationId)
+    .eq("ticket_id", ticketId);
+
+  if (selectError) {
+    console.error("Error selecting requester quotation:", selectError);
+    return { error: selectError.message, code: "conflict" };
+  }
+
+  await supabase
+    .from("ticket_purchase_details")
+    .update({ approved_quotation_id: quotationId })
+    .eq("ticket_id", ticketId);
+
+  const { data: updatedTickets, error: ticketUpdateError } = await supabase
+    .from("tickets")
+    .update({ status: "approved" })
+    .eq("id", ticketId)
+    .select("id");
+
+  if (ticketUpdateError) {
+    console.error("Error approving ticket after requester selection:", ticketUpdateError);
+    return { error: ticketUpdateError.message, code: "conflict" };
+  }
+
+  if (!updatedTickets || updatedTickets.length === 0) {
+    return {
+      error:
+        "Não foi possível aprovar o chamado. O chamado pode ter sido alterado por outro usuário.",
+      code: "conflict",
+    };
+  }
+
+  await supabase.from("ticket_history").insert({
+    ticket_id: ticketId,
+    user_id: user.id,
+    action: "requester_selected_quotation",
+    old_value: "awaiting_requester_selection",
+    new_value: "approved",
+  });
+
+  revalidatePath(`/chamados/compras/${ticketId}`);
+  revalidatePath("/chamados/compras");
+  return { success: true };
+}
+
+/**
  * Envia chamado em cotação para aprovação.
  * Requer que o status seja 'quoting', o usuário seja membro de Compras,
  * e que exista ao menos uma cotação selecionada.
@@ -1666,6 +1865,90 @@ export async function sendToApproval(ticketId: string) {
 }
 
 /**
+ * Envia chamado em cotação para seleção do solicitante.
+ * Requer entre 2 e 3 cotações e ticket filho de outro chamado.
+ */
+export async function sendToRequesterSelection(ticketId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Não autenticado", code: "forbidden" };
+  }
+
+  const canManage = await canManageTicket(ticketId);
+  if (!canManage) {
+    return { error: "Apenas membros de Compras podem enviar para seleção", code: "forbidden" };
+  }
+
+  const { data: ticket } = await supabase
+    .from("tickets")
+    .select("status, parent_ticket_id")
+    .eq("id", ticketId)
+    .single();
+
+  if (!ticket) {
+    return { error: "Chamado não encontrado", code: "not_found" };
+  }
+
+  if (ticket.status !== "quoting") {
+    return { error: "Chamado não está em cotação", code: "conflict" };
+  }
+
+  if (!ticket.parent_ticket_id) {
+    return { error: "Ação disponível apenas para chamados vinculados", code: "validation" };
+  }
+
+  const { count: quotationCount, error: quotationCountError } = await supabase
+    .from("ticket_quotations")
+    .select("id", { count: "exact", head: true })
+    .eq("ticket_id", ticketId);
+
+  if (quotationCountError) {
+    console.error("Error counting quotations:", quotationCountError);
+    return { error: quotationCountError.message, code: "conflict" };
+  }
+
+  const totalQuotations = quotationCount ?? 0;
+  if (totalQuotations < 2 || totalQuotations > 3) {
+    return { error: "É necessário ter entre 2 e 3 cotações para enviar à seleção", code: "validation" };
+  }
+
+  const { data: updatedTickets, error: updateError } = await supabase
+    .from("tickets")
+    .update({ status: "awaiting_requester_selection" })
+    .eq("id", ticketId)
+    .select("id");
+
+  if (updateError) {
+    console.error("Error sending to requester selection:", updateError);
+    return { error: updateError.message, code: "conflict" };
+  }
+
+  if (!updatedTickets || updatedTickets.length === 0) {
+    return {
+      error:
+        "Não foi possível enviar para seleção. O chamado pode ter sido alterado por outro usuário.",
+      code: "conflict",
+    };
+  }
+
+  await supabase.from("ticket_history").insert({
+    ticket_id: ticketId,
+    user_id: user.id,
+    action: "sent_to_requester_selection",
+    old_value: "quoting",
+    new_value: "awaiting_requester_selection",
+  });
+
+  revalidatePath(`/chamados/compras/${ticketId}`);
+  revalidatePath("/chamados/compras");
+  return { success: true };
+}
+
+/**
  * Remove cotação
  */
 export async function deleteQuotation(ticketId: string, quotationId: string) {
@@ -1708,6 +1991,12 @@ export async function changeTicketStatus(
 
   if (!ticket) {
     return { error: "Chamado não encontrado", code: "not_found" };
+  }
+
+  // This transition must always go through the dedicated guarded flow
+  // that enforces Compras membership, linked-ticket requirement and 2-3 quotations.
+  if (newStatus === "awaiting_requester_selection") {
+    return sendToRequesterSelection(ticketId);
   }
 
   // Verificar se é admin ou Gerente (podem fechar/cancelar de qualquer status)

@@ -59,7 +59,6 @@ interface TicketActionsProps {
   userPermissions?: Permission[];
   comprasCategories?: { id: string; name: string }[];
   tiCategories?: { id: string; name: string }[];
-  units?: { id: string; name: string; code: string }[];
 }
 
 // Labels para status
@@ -144,7 +143,6 @@ export function TicketActions({
   userPermissions = [],
   comprasCategories = [],
   tiCategories = [],
-  units = [],
 }: TicketActionsProps) {
   const router = useRouter();
   const [isDenyDialogOpen, setIsDenyDialogOpen] = useState(false);
@@ -297,13 +295,22 @@ export function TicketActions({
 
           {/* Botão de Chamado Vinculado */}
           {showLinkedTicketButton && (
-            <LinkedTicketDialog
-              parentTicketId={ticketId}
-              comprasCategories={comprasCategories}
-              tiCategories={tiCategories}
-              units={units}
-              disabled={isPending}
-            />
+            <>
+              <LinkedTicketDialog
+                type="compras"
+                parentTicketId={ticketId}
+                comprasCategories={comprasCategories}
+                tiCategories={tiCategories}
+                disabled={isPending}
+              />
+              <LinkedTicketDialog
+                type="ti"
+                parentTicketId={ticketId}
+                comprasCategories={comprasCategories}
+                tiCategories={tiCategories}
+                disabled={isPending}
+              />
+            </>
           )}
         </CardContent>
       </Card>

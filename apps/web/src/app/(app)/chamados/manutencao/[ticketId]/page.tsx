@@ -158,7 +158,6 @@ export default async function MaintenanceTicketDetailsPage({
             userPermissions={userPermissions}
             comprasCategories={comprasCategories}
             tiCategories={tiCategories}
-            units={units}
           />
 
           {/* Timeline / Histórico */}

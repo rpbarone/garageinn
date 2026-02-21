@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,13 +58,7 @@ export function TiFilters({ categories, units }: TiFiltersProps) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState(searchParams.get("search") || "");
-  const [parentTicketId, setParentTicketId] = useState(
-    searchParams.get("parent_ticket_id") || ""
-  );
-
-  useEffect(() => {
-    setParentTicketId(searchParams.get("parent_ticket_id") || "");
-  }, [searchParams]);
+  const parentTicketInputRef = useRef<HTMLInputElement>(null);
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -96,13 +90,16 @@ export function TiFilters({ categories, units }: TiFiltersProps) {
   );
 
   const handleParentTicketIdApply = useCallback(() => {
-    updateFilter("parent_ticket_id", parentTicketId.trim());
-  }, [parentTicketId, updateFilter]);
+    const value = parentTicketInputRef.current?.value?.trim() || "";
+    updateFilter("parent_ticket_id", value);
+  }, [updateFilter]);
 
   const clearFilters = useCallback(() => {
     startTransition(() => {
       setSearch("");
-      setParentTicketId("");
+      if (parentTicketInputRef.current) {
+        parentTicketInputRef.current.value = "";
+      }
       router.push("/chamados/ti");
     });
   }, [router]);
@@ -202,9 +199,10 @@ export function TiFilters({ categories, units }: TiFiltersProps) {
 
         <div className="flex items-center gap-2">
           <Input
+            key={searchParams.get("parent_ticket_id") || ""}
+            ref={parentTicketInputRef}
             placeholder="Chamado pai (ID ou número)"
-            value={parentTicketId}
-            onChange={(e) => setParentTicketId(e.target.value)}
+            defaultValue={searchParams.get("parent_ticket_id") || ""}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();

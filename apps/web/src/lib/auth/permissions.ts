@@ -107,8 +107,9 @@ export const DEPARTMENT_ROLE_PERMISSIONS: Record<
 
   // ===== COMPRAS E MANUTENÇÃO =====
   // Cargos no banco: Assistente, Comprador, Gerente
+  // TODO: configurar por nível conforme necessidade futura
   "Compras e Manutenção": {
-    Assistente: ["tickets:read"],
+    Assistente: ["tickets:read", "tickets:execute"],
     Comprador: ["tickets:read", "tickets:execute"],
     Gerente: [
       "tickets:read",

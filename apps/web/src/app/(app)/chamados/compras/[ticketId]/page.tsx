@@ -8,6 +8,7 @@ import {
   getCurrentUser,
   checkIsAdmin,
   getCurrentUserPermissions,
+  getIsInteressado,
 } from "../actions";
 import { getAllowedTransitions, getTransitionPermission } from "../constants";
 import { hasPermission } from "@/lib/auth/rbac";
@@ -61,6 +62,7 @@ export default async function TicketDetailsPage({ params }: PageProps) {
     currentUser,
     isAdmin,
     userPermissions,
+    isInteressado,
   ] = await Promise.all([
     getTicketDetails(ticketId),
     canManageTicket(ticketId),
@@ -69,6 +71,7 @@ export default async function TicketDetailsPage({ params }: PageProps) {
     getCurrentUser(),
     checkIsAdmin(),
     getCurrentUserPermissions(),
+    getIsInteressado(ticketId),
   ]);
 
   if (!ticket) {
@@ -96,6 +99,7 @@ export default async function TicketDetailsPage({ params }: PageProps) {
   const isRequester = currentUser?.id === ticket.created_by;
   const isComprasMember = canManage;
   const hasSelectedQuotation = ticket.quotations?.some((q: { is_selected?: boolean }) => q.is_selected) ?? false;
+  const quotationCount = ticket.quotations?.length ?? 0;
 
   // Obter transições permitidas para o status atual
   const rawTransitions = getAllowedTransitions(ticket.status);
@@ -130,10 +134,13 @@ export default async function TicketDetailsPage({ params }: PageProps) {
           <TicketInfo ticket={ticket} />
 
           {/* Seleção de cotação pelo solicitante */}
-          {isRequester && ticket.status === "quoting" && ticket.quotations?.length > 0 && (
+          {isInteressado &&
+            ticket.status === "awaiting_requester_selection" &&
+            ticket.quotations?.length > 0 && (
             <QuotationSelectionDialog
               ticketId={ticketId}
               quotations={ticket.quotations}
+              mode="requester"
             />
           )}
 
@@ -187,6 +194,8 @@ export default async function TicketDetailsPage({ params }: PageProps) {
             isComprasMember={isComprasMember}
             isRequester={isRequester}
             canEvaluateDelivery={canEvaluateDelivery}
+            quotationCount={quotationCount}
+            hasParentTicket={!!ticket.parent_ticket_id}
           />
 
           {/* Timeline / Histórico */}

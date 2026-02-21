@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Ban,
   Settings,
+  Users,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { changeTicketStatus, sendToApproval } from "../../actions";
+import {
+  changeTicketStatus,
+  sendToApproval,
+  sendToRequesterSelection,
+} from "../../actions";
 import { TriageDialog } from "./triage-dialog";
 import { DeliveryRegistrationDialog } from "./delivery-registration-dialog";
 import { DeliveryEvaluationDialog } from "./delivery-evaluation-dialog";
@@ -64,6 +69,8 @@ interface TicketActionsProps {
   isComprasMember?: boolean;
   isRequester?: boolean;
   canEvaluateDelivery?: boolean;
+  quotationCount?: number;
+  hasParentTicket?: boolean;
 }
 
 // Labels para status
@@ -74,6 +81,7 @@ const statusLabels: Record<string, string> = {
   awaiting_triage: "Aguardando Triagem",
   in_progress: "Em Andamento",
   quoting: "Em Cotação",
+  awaiting_requester_selection: "Aguardando Seleção do Solicitante",
   awaiting_approval: "Aguardando Aprovação",
   approved: "Aprovado",
   purchasing: "Executando Compra",
@@ -136,6 +144,8 @@ export function TicketActions({
   isComprasMember = false,
   isRequester = false,
   canEvaluateDelivery = false,
+  quotationCount,
+  hasParentTicket,
 }: TicketActionsProps) {
   const router = useRouter();
   const [isDenyDialogOpen, setIsDenyDialogOpen] = useState(false);
@@ -145,9 +155,17 @@ export function TicketActions({
   // Mostrar botão de triagem apenas se status é awaiting_triage e usuário pode triar
   const showTriageButton = currentStatus === "awaiting_triage" && canTriage;
 
+  const showSendToSelectionButton =
+    currentStatus === "quoting" &&
+    isComprasMember &&
+    hasParentTicket &&
+    (quotationCount ?? 0) >= 2 &&
+    (quotationCount ?? 0) <= 3;
+
   const showSendToApprovalButton =
     currentStatus === "quoting" &&
     isComprasMember &&
+    !hasParentTicket &&
     hasSelectedQuotation;
 
   // Status finais que não podem ser fechados
@@ -229,12 +247,38 @@ export function TicketActions({
     });
   };
 
+  const handleSendToSelection = () => {
+    startTransition(async () => {
+      const result = await sendToRequesterSelection(ticketId);
+
+      if (result.error) {
+        if (result.code === "conflict") {
+          toast.warning(result.error);
+          router.refresh();
+          return;
+        }
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success("Chamado enviado para seleção do solicitante");
+      router.refresh();
+    });
+  };
+
   // Verificar se há ações de gerenciamento disponíveis
   const hasManageActions = canManage && allowedTransitions.length > 0;
 
   // Não mostrar card se não há NENHUMA ação disponível
   // CORREÇÃO BUG-012: Usar && ao invés de || para permitir triagem mesmo sem canManage
-  if (!showTriageButton && !hasManageActions && !showCloseButton && !showSendToApprovalButton && !canEvaluateDelivery) {
+  if (
+    !showTriageButton &&
+    !hasManageActions &&
+    !showCloseButton &&
+    !showSendToApprovalButton &&
+    !showSendToSelectionButton &&
+    !canEvaluateDelivery
+  ) {
     return null;
   }
 
@@ -259,6 +303,18 @@ export function TicketActions({
               items={items}
               disabled={isPending}
             />
+          )}
+
+          {showSendToSelectionButton && (
+            <Button
+              variant="default"
+              className="w-full gap-2"
+              onClick={handleSendToSelection}
+              disabled={isPending}
+            >
+              <Users className="h-4 w-4" />
+              Enviar para Seleção
+            </Button>
           )}
 
           {/* Botão "Enviar para Aprovação" manual (Compras, status quoting, cotação selecionada) */}

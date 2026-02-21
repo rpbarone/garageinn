@@ -3,7 +3,6 @@
 import { useState, useTransition, useRef, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Link as LinkIcon,
   ShoppingCart,
   Monitor,
   FileText,
@@ -49,18 +48,18 @@ const UNITS_OF_MEASURE = [
 ];
 
 interface LinkedTicketDialogProps {
+  type: "compras" | "ti";
   parentTicketId: string;
   comprasCategories: { id: string; name: string }[];
   tiCategories: { id: string; name: string }[];
-  units: { id: string; name: string; code: string }[];
   disabled?: boolean;
 }
 
 export function LinkedTicketDialog({
+  type,
   parentTicketId,
   comprasCategories,
   tiCategories,
-  units,
   disabled = false,
 }: LinkedTicketDialogProps) {
   const router = useRouter();
@@ -69,11 +68,9 @@ export function LinkedTicketDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
-  const [type, setType] = useState<"compras" | "ti">("compras");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [unitId, setUnitId] = useState("");
   const [perceivedUrgency, setPerceivedUrgency] = useState("");
 
   // Compras-specific
@@ -88,11 +85,9 @@ export function LinkedTicketDialog({
   const [attachments, setAttachments] = useState<File[]>([]);
 
   const resetForm = () => {
-    setType("compras");
     setTitle("");
     setDescription("");
     setCategoryId("");
-    setUnitId("");
     setPerceivedUrgency("");
     setItemName("");
     setQuantity("");
@@ -103,16 +98,6 @@ export function LinkedTicketDialog({
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  };
-
-  const handleTypeChange = (newType: "compras" | "ti") => {
-    setType(newType);
-    setCategoryId("");
-    setItemName("");
-    setQuantity("");
-    setUnitOfMeasure("un");
-    setEstimatedPrice("");
-    setEquipmentType("");
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -137,7 +122,6 @@ export function LinkedTicketDialog({
     formData.set("title", title.trim());
     formData.set("description", description.trim());
     if (categoryId) formData.set("category_id", categoryId);
-    if (unitId) formData.set("unit_id", unitId);
     if (perceivedUrgency) formData.set("perceived_urgency", perceivedUrgency);
 
     if (type === "compras") {
@@ -178,8 +162,12 @@ export function LinkedTicketDialog({
         onClick={() => setOpen(true)}
         disabled={disabled}
       >
-        <LinkIcon className="h-4 w-4" />
-        Gerar Chamado Vinculado
+        {type === "compras" ? (
+          <ShoppingCart className="h-4 w-4" />
+        ) : (
+          <Monitor className="h-4 w-4" />
+        )}
+        {type === "compras" ? "Vincular Chamado de Compra" : "Vincular Chamado de TI"}
       </Button>
 
       <Dialog
@@ -192,46 +180,21 @@ export function LinkedTicketDialog({
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <LinkIcon className="h-5 w-5 text-primary" />
-              Gerar Chamado Vinculado
+              {type === "compras" ? (
+                <ShoppingCart className="h-5 w-5 text-primary" />
+              ) : (
+                <Monitor className="h-5 w-5 text-primary" />
+              )}
+              {type === "compras" ? "Vincular Chamado de Compra" : "Vincular Chamado de TI"}
             </DialogTitle>
             <DialogDescription>
-              Crie um chamado de Compras ou TI vinculado a este chamado de
+              Crie um chamado de {type === "compras" ? "Compras" : "TI"} vinculado a este chamado de
               manutenção. O novo chamado manterá a referência ao chamado
               original.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Tipo */}
-            <div className="space-y-2">
-              <Label>Tipo de Chamado</Label>
-              <Select
-                value={type}
-                onValueChange={(v) =>
-                  handleTypeChange(v as "compras" | "ti")
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="compras">
-                    <div className="flex items-center gap-2">
-                      <ShoppingCart className="h-4 w-4" />
-                      Compras
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ti">
-                    <div className="flex items-center gap-2">
-                      <Monitor className="h-4 w-4" />
-                      TI
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Título */}
             <div className="space-y-2">
               <Label htmlFor="linked_title">
@@ -262,7 +225,7 @@ export function LinkedTicketDialog({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {/* Categoria */}
               <div className="space-y-2">
                 <Label>Categoria</Label>
@@ -274,23 +237,6 @@ export function LinkedTicketDialog({
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Unidade */}
-              <div className="space-y-2">
-                <Label>Unidade</Label>
-                <Select value={unitId} onValueChange={setUnitId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name} ({u.code})
                       </SelectItem>
                     ))}
                   </SelectContent>

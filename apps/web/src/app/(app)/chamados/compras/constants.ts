@@ -7,7 +7,8 @@ export const statusTransitions: Record<string, string[]> = {
   awaiting_approval_gerente: ["awaiting_triage", "denied"],
   awaiting_triage: ["in_progress", "quoting", "denied"],
   in_progress: ["quoting", "denied", "cancelled"],
-  quoting: ["approved", "denied"],
+  quoting: ["awaiting_requester_selection", "approved", "denied"],
+  awaiting_requester_selection: ["approved", "denied"],
   awaiting_approval: ["approved", "denied"],
   approved: ["purchasing"],
   purchasing: ["in_delivery"],
@@ -27,6 +28,7 @@ export const statusLabels: Record<string, string> = {
   awaiting_triage: "Aguardando Triagem",
   in_progress: "Em Andamento",
   quoting: "Em Cotação",
+  awaiting_requester_selection: "Aguardando Seleção do Solicitante",
   awaiting_approval: "Aguardando Aprovação",
   approved: "Aprovado",
   purchasing: "Executando Compra",
@@ -79,6 +81,7 @@ export const transitionPermissions: Record<string, "tickets:approve" | "tickets:
   awaiting_approval_supervisor: null,
   awaiting_approval_gerente: null,
   awaiting_triage: null,
+  awaiting_requester_selection: "tickets:execute",
 };
 
 /**

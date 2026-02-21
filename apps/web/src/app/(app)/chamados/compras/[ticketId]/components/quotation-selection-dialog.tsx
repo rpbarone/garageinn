@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { selectQuotation } from "../../actions";
+import { selectQuotation, selectQuotationByRequester } from "../../actions";
 import { cn } from "@/lib/utils";
 
 interface Quotation {
@@ -30,12 +30,14 @@ interface QuotationSelectionDialogProps {
   ticketId: string;
   quotations: Quotation[];
   disabled?: boolean;
+  mode?: "compras" | "requester";
 }
 
 export function QuotationSelectionDialog({
   ticketId,
   quotations,
   disabled,
+  mode = "compras",
 }: QuotationSelectionDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -51,7 +53,10 @@ export function QuotationSelectionDialog({
     }
 
     startTransition(async () => {
-      const result = await selectQuotation(ticketId, selectedId);
+      const result =
+        mode === "requester"
+          ? await selectQuotationByRequester(ticketId, selectedId)
+          : await selectQuotation(ticketId, selectedId);
 
       if (result.error) {
         toast.error(result.error);
@@ -82,7 +87,9 @@ export function QuotationSelectionDialog({
         <DialogHeader>
           <DialogTitle>Selecionar Cotação</DialogTitle>
           <DialogDescription>
-            Escolha a cotação que melhor atende à sua necessidade.
+            {mode === "requester"
+              ? "Escolha a cotação que melhor atende à necessidade da sua equipe. Após a confirmação, o chamado será encaminhado para execução."
+              : "Escolha a cotação que melhor atende à sua necessidade."}
           </DialogDescription>
         </DialogHeader>
 

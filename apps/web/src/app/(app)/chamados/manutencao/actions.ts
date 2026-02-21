@@ -1646,7 +1646,7 @@ export async function createLinkedTicket(
   // Verificar se o chamado pai existe
   const { data: parentTicket } = await supabase
     .from("tickets")
-    .select("id, status, department_id")
+    .select("id, status, department_id, unit_id")
     .eq("id", parentTicketId)
     .single();
 
@@ -1677,7 +1677,6 @@ export async function createLinkedTicket(
   const title = formData.get("title") as string;
   const description = formData.get("description") as string;
   const category_id = formData.get("category_id") as string | null;
-  const unit_id = formData.get("unit_id") as string | null;
   const perceived_urgency = formData.get("perceived_urgency") as string | null;
 
   if (!title || title.length < 5) {
@@ -1716,7 +1715,7 @@ export async function createLinkedTicket(
       description,
       department_id: targetDept.id,
       category_id: category_id && category_id !== "" ? category_id : null,
-      unit_id: unit_id && unit_id !== "" ? unit_id : null,
+      unit_id: parentTicket.unit_id ?? null,
       created_by: user.id,
       status: initialStatus,
       perceived_urgency:
