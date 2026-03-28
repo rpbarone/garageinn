@@ -1,0 +1,47 @@
+services:
+  web:
+    image: ${WEB_IMAGE:-garageinn-legacy-web:local}
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?NEXT_PUBLIC_SUPABASE_URL is required}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?NEXT_PUBLIC_SUPABASE_ANON_KEY is required}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://garageinn-legacy.2mow.org}
+        NEXT_PUBLIC_VERCEL_URL: ${NEXT_PUBLIC_VERCEL_URL:-}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?NEXT_PUBLIC_SUPABASE_URL is required}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?NEXT_PUBLIC_SUPABASE_ANON_KEY is required}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://garageinn-legacy.2mow.org}
+      NEXT_PUBLIC_VERCEL_URL: ${NEXT_PUBLIC_VERCEL_URL:-}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/healthz').then((response) => response.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    networks:
+      default:
+        aliases:
+          - garageinn-legacy-web
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.3.0
+    restart: unless-stopped
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN is required}
+    depends_on:
+      - web

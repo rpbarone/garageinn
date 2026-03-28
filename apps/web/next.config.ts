@@ -2,6 +2,8 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+
   // Monorepo: garante root correto para o Turbopack e file tracing.
   turbopack: {
     root: path.join(__dirname, "../.."),

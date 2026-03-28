@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/.next
+**/dist
+**/playwright-report
+**/test-results
+**/*.log
+.env
+.env.*
+apps/web/.env
+apps/web/.env.local
+apps/web/.env.*
+apps/mobile/.env
+apps/mobile/.env.*
