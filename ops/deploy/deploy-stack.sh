@@ -32,4 +32,9 @@ docker stack deploy \
   -c "${ROOT_DIR}/docker-stack.prod.yml" \
   "${STACK_NAME}"
 
+WEB_SERVICE="${STACK_NAME}_web"
+if docker service inspect "${WEB_SERVICE}" >/dev/null 2>&1; then
+  docker service update --force "${WEB_SERVICE}" >/dev/null
+fi
+
 docker service ls --format 'table {{.Name}}\t{{.Replicas}}\t{{.Image}}' | grep "^${STACK_NAME}_"
