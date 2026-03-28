@@ -23,13 +23,14 @@ COPY apps ./apps
 RUN npm run build --workspace apps/web
 
 FROM node:24-bookworm-slim AS runner
-WORKDIR /srv/garageinn-legacy/apps/web
+WORKDIR /srv/garageinn-legacy
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 COPY --from=builder /srv/garageinn-legacy/apps/web/.next/standalone ./
-COPY --from=builder /srv/garageinn-legacy/apps/web/.next/static ./.next/static
-COPY --from=builder /srv/garageinn-legacy/apps/web/public ./public
+COPY --from=builder /srv/garageinn-legacy/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /srv/garageinn-legacy/apps/web/public ./apps/web/public
+RUN cd apps/web && npm install --omit=dev --no-save --include=optional --os=linux --cpu=x64 sharp@0.34.4
 EXPOSE 3000
 CMD ["node", "apps/web/server.js"]
